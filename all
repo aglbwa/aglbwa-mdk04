@@ -1,0 +1,355 @@
+Ниже приведён подробный план и команды для выполнения всех пунктов на Ubuntu. Предполагается, что у вас есть права root (через sudo).
+
+---
+
+# 1. Настройка параметров ОС, драйверов и служб
+
+### 1.1 Использование специальных утилит для настройки ядра (2,5 балла)
+
+- Утилита: `sysctl` — для настройки параметров ядра
+
+```bash
+# Просмотр текущих параметров ядра
+sudo sysctl -a | less
+
+# Пример настройки параметра (увеличение максимального количества открытых файлов)
+sudo sysctl -w fs.file-max=100000
+
+# Для постоянного применения параметра
+echo "fs.file-max=100000" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+- Утилита: `modprobe` — управление модулями ядра
+
+```bash
+# Просмотр загруженных модулей
+lsmod
+
+# Загрузка модуля (пример: модуль для ext4)
+sudo modprobe ext4
+
+# Добавить модуль в автозагрузку
+echo "ext4" | sudo tee -a /etc/modules
+```
+
+---
+
+### 1.2 Настройка сетевого протокола SSH (2 балла)
+
+- Установка SSH-сервера
+
+```bash
+sudo apt update
+sudo apt install -y openssh-server
+```
+
+- Проверка статуса SSH
+
+```bash
+sudo systemctl status ssh
+```
+
+- Настройка конфигурации SSH (пример: запрет входа root)
+
+```bash
+sudo nano /etc/ssh/sshd_config
+# В файле найти и изменить:
+PermitRootLogin no
+# Сохранить и выйти
+
+sudo systemctl restart ssh
+```
+
+- Проверка, что SSH слушает на порту 22
+
+```bash
+sudo ss -tlnp | grep sshd
+```
+
+---
+
+### 1.3 Настройка удаленного доступа к активной сессии (2 балла)
+
+- Для доступа к активной сессии через SSH можно использовать `tmux` или `screen`
+
+```bash
+sudo apt install -y tmux
+```
+
+- Запуск сессии tmux
+
+```bash
+tmux new -s mysession
+```
+
+- Подключение к сессии с другого терминала
+
+```bash
+tmux attach -t mysession
+```
+
+- Альтернативно, можно использовать VNC для графического доступа:
+
+```bash
+sudo apt install -y tigervnc-standalone-server
+```
+
+Настроить VNC-сервер и подключаться к активной сессии.
+
+---
+
+# 2. Настройка интернет-соединения
+
+### 2.1 Выбор правильного сетевого интерфейса (1 балл)
+
+- Просмотр интерфейсов:
+
+```bash
+ip link show
+```
+
+- Настройка нужного интерфейса (например, eth0) через Netplan (Ubuntu 18.04+)
+
+```bash
+sudo nano /etc/netplan/01-netcfg.yaml
+```
+
+Пример содержимого:
+
+```yaml
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eth0:
+      dhcp4: yes
+```
+
+- Применение конфигурации
+
+```bash
+sudo netplan apply
+```
+
+---
+
+### 2.2 Проверка сетевого соединения (2 балла)
+
+- Проверка IP-адреса
+
+```bash
+ip addr show eth0
+```
+
+- Проверка связи с интернетом
+
+```bash
+ping -c 4 8.8.8.8
+ping -c 4 google.com
+```
+
+- Проверка маршрута
+
+```bash
+ip route
+```
+
+---
+
+# 3. Установка базового программного обеспечения (2 балла)
+
+Установим набор базовых утилит:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential curl wget git vim net-tools
+```
+
+---
+
+# 4. Установка виртуального принтера (2 балла)
+
+- Установка CUPS (Common UNIX Printing System)
+
+```bash
+sudo apt install -y cups
+sudo systemctl enable cups
+sudo systemctl start cups
+```
+
+- Установка виртуального принтера (например, PDF-принтер)
+
+```bash
+sudo apt install -y cups-pdf
+```
+
+- Проверка, что принтер установлен
+
+```bash
+lpstat -p
+```
+
+- Веб-интерфейс CUPS доступен по адресу http://localhost:631
+
+---
+
+# 5. Обоснование выбора программных ресурсов (2 балла)
+
+- Используем стандартные и официальные пакеты из репозиториев Ubuntu — это гарантирует стабильность и поддержку.
+- SSH — стандартный протокол для удалённого доступа.
+- tmux — лёгкий и удобный инструмент для управления сессиями, позволяет подключаться к активной сессии.
+- CUPS — стандартный демо́н печати в Linux.
+- cups-pdf — виртуальный принтер для создания PDF-файлов, удобен для тестирования и отсутствия физического принтера.
+
+---
+
+# 6. Реализация защиты компьютерных систем
+
+### 6.1 Резервное копирование установленной операционной системы (2 балла)
+
+- Создадим образ системы с помощью `rsync` (пример):
+
+```bash
+sudo rsync -aAXv --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} / /backup/ubuntu_backup/
+```
+
+- Или с помощью `tar`:
+
+```bash
+sudo tar --exclude=/backup --exclude=/proc --exclude=/sys --exclude=/dev --exclude=/tmp -cvpzf /backup/ubuntu_backup.tar.gz /
+```
+
+(путь /backup должен существовать и иметь достаточно места)
+
+---
+
+### 6.2 Создание установочного образа системы (1 балл)
+
+- Утилита `dd` для создания образа диска (пример):
+
+```bash
+sudo dd if=/dev/sda of=/backup/ubuntu_disk_image.img bs=4M status=progress
+```
+
+- Для создания ISO образа установленной системы можно использовать инструменты типа `remastersys` или `Systemback` (устаревшие) или `pinguybuilder`.
+
+---
+
+### 6.3 Создание точек восстановления системы (2 балла)
+
+Ubuntu не имеет встроенных точек восстановления, но можно использовать `Timeshift`:
+
+```bash
+sudo apt install -y timeshift
+sudo timeshift --create --comments "Initial snapshot" --tags D
+```
+
+- Для создания и управления снимками:
+
+```bash
+sudo timeshift --list
+sudo timeshift --restore
+```
+
+---
+
+### 6.4 Создание групп пользователей (1 балл)
+
+```bash
+sudo groupadd admin_group
+sudo groupadd users_group
+```
+
+- Добавление пользователей в группы
+
+```bash
+sudo usermod -aG admin_group username
+```
+
+---
+
+### 6.5 Настройка прав доступа к ресурсам (1 балл)
+
+- Пример: каталог /srv/data доступен только группе admin_group
+
+```bash
+sudo mkdir -p /srv/data
+sudo chown root:admin_group /srv/data
+sudo chmod 770 /srv/data
+```
+
+---
+
+### 6.6 Настройка аутентификации и авторизации (1 балл)
+
+- Настройка PAM (Pluggable Authentication Modules) — пример включения ограничения по времени:
+
+```bash
+sudo nano /etc/security/time.conf
+```
+
+- Настройка SSH для авторизации по ключам (рекомендуется):
+
+```bash
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+nano ~/.ssh/authorized_keys
+# Вставьте публичный ключ
+chmod 600 ~/.ssh/authorized_keys
+```
+
+- В файле `/etc/ssh/sshd_config`:
+
+```
+PasswordAuthentication no
+PubkeyAuthentication yes
+```
+
+- Перезапуск ssh:
+
+```bash
+sudo systemctl restart ssh
+```
+
+---
+
+### 6.7 Настройка журнала мониторинга (1 балл)
+
+- Используем `rsyslog` (обычно установлен):
+
+```bash
+sudo systemctl status rsyslog
+```
+
+- Настройка фильтров и отправка логов в отдельный файл, например, для ssh:
+
+```bash
+sudo nano /etc/rsyslog.d/50-default.conf
+```
+
+Добавить:
+
+```
+auth,authpriv.*    /var/log/auth.log
+```
+
+- Перезапустить rsyslog
+
+```bash
+sudo systemctl restart rsyslog
+```
+
+- Просмотр лога:
+
+```bash
+tail -f /var/log/auth.log
+```
+
+---
+
+# Итог
+
+Выполнив эти шаги, вы настроите Ubuntu согласно всем критериям из вашего задания.
+
+Если нужно, могу помочь с автоматизацией в виде скрипта.
